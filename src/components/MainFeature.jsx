@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { format, addDays, isWeekend } from 'date-fns';
 import getIcon from '../utils/iconUtils';
+import { AppointmentService } from '../services/appointmentService';
 
 export default function MainFeature() {
   // Declare all icon components
@@ -22,11 +23,12 @@ export default function MainFeature() {
     fullName: '',
     email: '',
     phone: '',
-    doctorId: '',
+    doctor: '',
     appointmentType: '',
     notes: '',
     date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-    time: '09:00'
+    time: '09:00',
+    status: 'Scheduled'
   });
   
   // UI state
@@ -39,9 +41,9 @@ export default function MainFeature() {
   
   // Doctor options
   const doctors = [
-    { id: 'dr-johnson', name: 'Dr. Sarah Johnson', specialty: 'Cardiology' },
-    { id: 'dr-chen', name: 'Dr. Michael Chen', specialty: 'Pediatrics' },
-    { id: 'dr-patel', name: 'Dr. Amara Patel', specialty: 'Neurology' },
+    { id: 'dr-johnson', name: 'Dr. Sarah Johnson (Cardiology)' },
+    { id: 'dr-chen', name: 'Dr. Michael Chen (Pediatrics)' },
+    { id: 'dr-patel', name: 'Dr. Amara Patel (Neurology)' },
   ];
   
   // Appointment types
@@ -124,7 +126,7 @@ export default function MainFeature() {
     
     // Validation for step 2
     if (step === 2) {
-      if (!formData.doctorId || !formData.appointmentType) {
+      if (!formData.doctor || !formData.appointmentType) {
         toast.error("Please select both a doctor and appointment type");
         return;
       }
@@ -145,7 +147,7 @@ export default function MainFeature() {
     return /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/.test(phone);
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.date || !formData.time) {
@@ -155,23 +157,34 @@ export default function MainFeature() {
     
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Create the appointment using the AppointmentService
+      const appointmentData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        doctor: formData.doctor,
+        appointmentType: formData.appointmentType,
+        notes: formData.notes,
+        date: formData.date,
+        time: formData.time,
+        status: 'Scheduled'
+      };
+      
+      const response = await AppointmentService.createAppointment(appointmentData);
+      
+      if (response && response.success) {
+        setSubmitted(true);
+        toast.success("Appointment booked successfully!");
+      } else {
+        toast.error("Failed to book appointment. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error booking appointment:", error);
+      toast.error("An error occurred while booking your appointment");
+    } finally {
       setLoading(false);
-      setSubmitted(true);
-      toast.success("Appointment booked successfully!");
-      
-      // Get selected doctor and appointment type names
-      const doctor = doctors.find(doc => doc.id === formData.doctorId);
-      const appointmentType = appointmentTypes.find(type => type.id === formData.appointmentType);
-      
-      console.log("Appointment booked:", {
-        ...formData,
-        doctor: doctor?.name,
-        appointmentType: appointmentType?.name,
-        dateTime: `${formData.date} at ${formData.time}`
-      });
-    }, 1500);
+    }
   };
   
   const handleReset = () => {
@@ -179,11 +192,12 @@ export default function MainFeature() {
       fullName: '',
       email: '',
       phone: '',
-      doctorId: '',
+      doctor: '',
       appointmentType: '',
       notes: '',
       date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      time: '09:00'
+      time: '09:00',
+      status: 'Scheduled'
     });
     setStep(1);
     setSubmitted(false);
@@ -282,19 +296,19 @@ export default function MainFeature() {
       <h3 className="mb-4 text-xl font-medium">Appointment Details</h3>
       
       <div className="mb-6">
-        <label htmlFor="doctorId" className="form-label">Select Doctor*</label>
+        <label htmlFor="doctor" className="form-label">Select Doctor*</label>
         <select
-          id="doctorId"
-          name="doctorId"
-          value={formData.doctorId}
+          id="doctor"
+          name="doctor"
+          value={formData.doctor}
           onChange={handleChange}
           className="select-field"
           required
         >
           <option value="">Select a doctor</option>
           {doctors.map((doctor) => (
-            <option key={doctor.id} value={doctor.id}>
-              {doctor.name} - {doctor.specialty}
+            <option key={doctor.id} value={doctor.name}>
+              {doctor.name}
             </option>
           ))}
         </select>
@@ -312,7 +326,7 @@ export default function MainFeature() {
         >
           <option value="">Select appointment type</option>
           {appointmentTypes.map((type) => (
-            <option key={type.id} value={type.id}>
+            <option key={type.id} value={type.name}>
               {type.name}
             </option>
           ))}
@@ -427,8 +441,8 @@ export default function MainFeature() {
   
   const renderConfirmation = () => {
     // Get selected doctor and appointment type information
-    const doctor = doctors.find(doc => doc.id === formData.doctorId);
-    const appointmentType = appointmentTypes.find(type => type.id === formData.appointmentType);
+    const selectedDoctor = formData.doctor;
+    const selectedAppointmentType = formData.appointmentType;
     
     return (
       <motion.div
@@ -444,7 +458,7 @@ export default function MainFeature() {
         
         <h3 className="mb-2 text-2xl font-bold">Appointment Confirmed!</h3>
         <p className="mb-6 text-surface-600 dark:text-surface-300">
-          We've booked your appointment with {doctor.name}.
+          We've booked your appointment with {selectedDoctor}.
         </p>
         
         <div className="mb-8 rounded-xl bg-surface-100 p-6 dark:bg-surface-800">
@@ -459,11 +473,11 @@ export default function MainFeature() {
             </div>
             <div>
               <p className="text-sm font-medium text-surface-500 dark:text-surface-400">Doctor</p>
-              <p className="font-medium">{doctor.name}</p>
+              <p className="font-medium">{selectedDoctor}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-surface-500 dark:text-surface-400">Service</p>
-              <p className="font-medium">{appointmentType.name}</p>
+              <p className="font-medium">{selectedAppointmentType}</p>
             </div>
           </div>
           
